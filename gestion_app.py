@@ -145,7 +145,6 @@ class FinanceApp:
             style='Custom.TCombobox'
         )
         period_selector.bind('<<ComboboxSelected>>', lambda e: self.update_table())
-        period_selector.bind('<<ComboboxSelected>>', lambda e: self.root.focus())
         period_selector.pack(side=tk.LEFT, padx=10)
         
         # Botones
@@ -171,6 +170,23 @@ class FinanceApp:
             
         self.tree.column("Descripción", width=300)
         self.tree.pack(fill=tk.BOTH, expand=True)
+
+    def update_table(self):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+            
+        start, end = self.get_period_range()
+        
+        for transaction in self.transactions:
+            trans_date = datetime.strptime(transaction["Fecha"], "%Y-%m-%d")
+            if start <= trans_date < end:
+                self.tree.insert("", tk.END, values=(
+                    transaction["Fecha"],
+                    transaction["Tipo"],
+                    transaction["Categoría"],
+                    f"${float(transaction['Monto']):.2f}",
+                    transaction["Descripción"]
+                ))
         
     def load_transactions(self):
         try:
@@ -204,6 +220,7 @@ class FinanceApp:
             ])
         
         workbook.save(self.filename)
+        self.update_table()
     
     def get_period_range(self):
         today = datetime.today()
@@ -218,23 +235,6 @@ class FinanceApp:
             start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             end = (start + timedelta(days=32)).replace(day=1)
         return start, end
-    
-    def update_table(self):
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-            
-        start, end = self.get_period_range()
-        
-        for transaction in self.transactions:
-            trans_date = datetime.strptime(transaction["Fecha"], "%Y-%m-%d")
-            if start <= trans_date < end:
-                self.tree.insert("", tk.END, values=(
-                    transaction["Fecha"],
-                    transaction["Tipo"],
-                    transaction["Categoría"],
-                    f"${float(transaction['Monto']):.2f}",
-                    transaction["Descripción"]
-                ))
     
     def open_add_window(self):
         self.transaction_window("Agregar Transacción")
@@ -251,7 +251,7 @@ class FinanceApp:
     def transaction_window(self, title, edit_mode=False):
         window = Toplevel(self.root)
         window.title(title)
-        window.geometry("500x400")
+        window.geometry("600x500")
         window.configure(bg='#f0f0f0')
         
         main_frame = ttk.Frame(window)

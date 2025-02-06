@@ -458,13 +458,6 @@ class FinanceApp:
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
         labels = ["Fecha (AAAA-MM-DD):", "Tipo:", "Categoría:", "Monto:", "Descripción:"]
-        default_values = [
-            datetime.today().strftime("%Y-%m-%d"),
-            "Ingreso",
-            "Otros",
-            "",
-            ""
-        ]
         
         if edit_mode:
             default_values = [
@@ -473,6 +466,14 @@ class FinanceApp:
                 self.selected_transaction[2],
                 self.selected_transaction[3][1:],
                 self.selected_transaction[4]
+            ]
+        else:
+            default_values = [
+                datetime.today().strftime("%Y-%m-%d"),
+                "Ingreso",
+                "Efectivo",
+                "",
+                ""
             ]
         
         fields = {}
@@ -536,7 +537,7 @@ class FinanceApp:
             
             if edit_mode:
                 for i, t in enumerate(self.transactions):
-                    if t["Fecha"] == self.selected_transaction[0] and t["Descripción"] == self.selected_transaction[4]:
+                    if t["Fecha"] == self.selected_transaction[0] and t["Descripción"] == str(self.selected_transaction[4]):
                         del self.transactions[i]
                         break
             
@@ -556,14 +557,18 @@ class FinanceApp:
             
         if messagebox.askyesno("Confirmar", "¿Eliminar esta transacción?"):
             selected_values = self.tree.item(selected_item)["values"]
+
             for i, t in enumerate(self.transactions):
+                print(f'i:{i}, t:{t}')
                 if (t["Fecha"] == selected_values[0] and 
-                    t["Descripción"] == selected_values[4] and
+                    str(t["Descripción"]) == str(selected_values[4]) and
                     float(t["Monto"]) == float(selected_values[3][1:])):
                     del self.transactions[i]
                     self.save_transactions()
                     self.update_table()
-                    break
+                    return
+
+            messagebox.showwarning("Advertencia", "No se pudo encontrar la transacción para eliminar")
 
 if __name__ == "__main__":
     root = tk.Tk()

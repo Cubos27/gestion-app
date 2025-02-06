@@ -1,12 +1,15 @@
 import tkinter as tk
+import os
 from tkinter import ttk, messagebox, Toplevel
 from datetime import datetime, timedelta
 from openpyxl import Workbook, load_workbook
+from tkcalendar import DateEntry
+from fpdf import FPDF
 
 class FinanceApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Financial Manager Pro")
+        self.root.title("Gestionapp")
         self.root.geometry("1200x700")
         self.root.configure(bg='#f0f0f0')
         
@@ -59,6 +62,14 @@ class FinanceApp:
                            foreground=self.colors['dark'],
                            padding=10)
         
+        self.style.configure('Success.TButton', 
+                           font=('Arial', 10, 'bold'),
+                           borderwidth=0,
+                           relief='flat',
+                           background='#28a745',
+                           foreground='white',
+                           padding=10)
+        
         self.style.map('Primary.TButton',
             background=[('active', '#1a5ee6'), ('disabled', '#cccccc')],
             foreground=[('active', 'white'), ('disabled', '#666666')]
@@ -67,6 +78,11 @@ class FinanceApp:
         self.style.map('Secondary.TButton',
             background=[('active', '#e9ecef'), ('disabled', '#cccccc')],
             foreground=[('active', self.colors['dark']), ('disabled', '#666666')]
+        )
+
+        self.style.map('Success.TButton',
+            background=[('active', '#218838'), ('disabled', '#cccccc')],
+            foreground=[('active', 'white'), ('disabled', '#666666')]
         )
 
         # ComboBox
@@ -139,7 +155,7 @@ class FinanceApp:
         period_selector = ttk.Combobox(
             control_frame,
             textvariable=self.selected_period,
-            values=["Día", "Semana", "Mes"],
+            values=["Día", "Semana", "Mes", "Mostrar todo"],
             state='readonly',
             width=10,
             style='Custom.TCombobox'
@@ -154,6 +170,7 @@ class FinanceApp:
         ttk.Button(btn_frame, text="Nuevo", style='Primary.TButton', command=self.open_add_window).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Editar", style='Secondary.TButton', command=self.open_edit_window).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Eliminar", style='Secondary.TButton', command=self.delete_transaction).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Generar Reporte", style='Success.TButton', command=self.open_balance_window).pack(side=tk.LEFT, padx=5)
         
         # Tabla
         columns = ("Fecha", "Tipo", "Categoría", "Monto", "Descripción")
@@ -170,6 +187,116 @@ class FinanceApp:
             
         self.tree.column("Descripción", width=300)
         self.tree.pack(fill=tk.BOTH, expand=True)
+
+    def open_balance_window(self):
+        self.balance_window = Toplevel(self.root)
+        self.balance_window.title("Generar Reporte")
+        self.balance_window.geometry("400x300")
+        self.balance_window.configure(bg='#f5f6fa')
+        
+        main_frame = ttk.Frame(self.balance_window)
+        main_frame.pack(padx=20, pady=20, fill=tk.BOTH, expand=True)
+        
+        # Selector de fechas
+        ttk.Label(main_frame, text="Fecha Inicio:").pack(pady=5, anchor=tk.W)
+        self.start_date = DateEntry(main_frame, 
+                                  date_pattern='yyyy-mm-dd',
+                                  background='#2a73ff',
+                                  foreground='white',
+                                  bordercolor='#ced4da')
+        self.start_date.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(main_frame, text="Fecha Fin:").pack(pady=5, anchor=tk.W)
+        self.end_date = DateEntry(main_frame, 
+                                date_pattern='yyyy-mm-dd',
+                                background='#2a73ff',
+                                foreground='white',
+                                bordercolor='#ced4da')
+        self.end_date.pack(fill=tk.X, pady=5)
+        
+        # Botón generar
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(pady=20)
+        
+        ttk.Button(btn_frame, text="Generar PDF", style='Primary.TButton',
+                 command=self.generate_pdf_report).pack(side=tk.LEFT, padx=10)
+        
+        ttk.Button(btn_frame, text="Cancelar", style='Secondary.TButton',
+                 command=self.balance_window.destroy).pack(side=tk.LEFT, padx=10)
+
+    def generate_pdf_report(self):
+        try:
+            start = datetime.strptime(self.start_date.get(), "%Y-%m-%d")
+            end = datetime.strptime(self.end_date.get(), "%Y-%m-%d")
+            
+            if start > end:
+                raise ValueError("La fecha de inicio debe ser anterior a la fecha final")
+                
+            filtered = [
+                t for t in self.transactions
+                if start <= datetime.strptime(t["Fecha"], "%Y-%m-%d") <= end
+            ]
+            
+            if not filtered:
+                messagebox.showwarning("Advertencia", "No hay transacciones en el rango seleccionado")
+                return
+                
+            # Calcular totales
+            ingresos = sum(float(t["Monto"]) for t in filtered if t["Tipo"] == "Ingreso")
+            gastos = sum(float(t["Monto"]) for t in filtered if t["Tipo"] == "Gasto")
+            ganancia = ingresos - gastos
+            margen = (ganancia / ingresos * 100) if ingresos != 0 else 0
+            
+            # Crear PDF
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", 'B', 16)
+            
+            # Encabezado
+            pdf.cell(0, 10, f"Reporte Financiero: {start.strftime('%d/%m/%Y')} - {end.strftime('%d/%m/%Y')}", 0, 1, 'C')
+            pdf.ln(10)
+            
+            # Tabla de transacciones
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(40, 10, "Fecha", 1)
+            pdf.cell(40, 10, "Tipo", 1)
+            pdf.cell(50, 10, "Categoría", 1)
+            pdf.cell(30, 10, "Monto", 1)
+            pdf.cell(0, 10, "Descripción", 1)
+            pdf.ln()
+            
+            pdf.set_font("Arial", size=10)
+            for t in filtered:
+                pdf.cell(40, 10, t["Fecha"], 1)
+                pdf.cell(40, 10, t["Tipo"], 1)
+                pdf.cell(50, 10, t["Categoría"], 1)
+                pdf.cell(30, 10, f"${float(t['Monto']):.2f}", 1)
+                pdf.cell(0, 10, t["Descripción"][:30], 1)
+                pdf.ln()
+            
+            # Totales
+            pdf.ln(10)
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 10, f"Ingresos Totales: ${ingresos:.2f}", 0, 1)
+            pdf.cell(0, 10, f"Gastos Totales: ${gastos:.2f}", 0, 1)
+            pdf.cell(0, 10, f"Ganancia Neta: ${ganancia:.2f}", 0, 1)
+            pdf.cell(0, 10, f"Margen de Ganancia: {margen:.1f}%", 0, 1)
+            
+            # Guardar archivo
+            if not os.path.exists(os.path.join("Reportes")):
+                os.makedirs(os.path.join("Reportes"))
+
+            filename = f"Reporte_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+            pathPDF = os.path.join("Reportes", filename)
+            pdf.output(pathPDF)
+            
+            messagebox.showinfo("Éxito", f"Reporte generado: {filename} en el directorio: {pathPDF}")
+            self.balance_window.destroy()
+            
+        except ValueError as e:
+            messagebox.showerror("Error", f"Datos inválidos: {str(e)}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error: {str(e)}")
 
     def update_table(self):
         for item in self.tree.get_children():
@@ -231,9 +358,12 @@ class FinanceApp:
             start = today - timedelta(days=today.weekday())
             start = start.replace(hour=0, minute=0, second=0, microsecond=0)
             end = start + timedelta(weeks=1)
-        else:  # Mes
+        elif self.selected_period.get() == "Mes":
             start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             end = (start + timedelta(days=32)).replace(day=1)
+        else: # Mostrar todo
+            start = today.replace(year=1980, day=1, hour=0, minute=0, second=0, microsecond=0)
+            end = datetime.max
         return start, end
     
     def open_add_window(self):

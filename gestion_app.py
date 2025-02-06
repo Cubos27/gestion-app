@@ -247,40 +247,88 @@ class FinanceApp:
             ganancia = ingresos - gastos
             margen = (ganancia / ingresos * 100) if ingresos != 0 else 0
             
-            # Crear PDF
-            pdf = FPDF()
+            # Configurar PDF profesional
+            pdf = FPDF(orientation='P', unit='mm', format='A4')
+            pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
-            pdf.set_font("Arial", 'B', 16)
+            
+            # Estilos
+            pdf.set_draw_color(34, 119, 255)  # Azul corporativo
+            pdf.set_line_width(0.3)
             
             # Encabezado
-            pdf.cell(0, 10, f"Reporte Financiero: {start.strftime('%d/%m/%Y')} - {end.strftime('%d/%m/%Y')}", 0, 1, 'C')
+            pdf.set_font('Arial', 'B', 16)
+            pdf.cell(0, 10, 'Reporte Financiero', 0, 1, 'C')
+            pdf.set_font('Arial', '', 12)
+            pdf.cell(0, 8, f'Periodo: {start.strftime("%d/%m/%Y")} - {end.strftime("%d/%m/%Y")}', 0, 1, 'C')
             pdf.ln(10)
             
             # Tabla de transacciones
-            pdf.set_font("Arial", 'B', 12)
-            pdf.cell(40, 10, "Fecha", 1)
-            pdf.cell(40, 10, "Tipo", 1)
-            pdf.cell(50, 10, "Categoría", 1)
-            pdf.cell(30, 10, "Monto", 1)
-            pdf.cell(0, 10, "Descripción", 1)
+            col_widths = [25, 25, 35, 25, 80]  # Ajuste de anchos de columna
+            header = ['Fecha', 'Tipo', 'Categoría', 'Monto', 'Descripción']
+            
+            # Encabezado de tabla
+            pdf.set_fill_color(240, 245, 255)  # Azul claro
+            pdf.set_font('Arial', 'B', 10)
+            for i, col in enumerate(header):
+                pdf.cell(col_widths[i], 10, col, 1, 0, 'C', True)
             pdf.ln()
             
-            pdf.set_font("Arial", size=10)
-            for t in filtered:
-                pdf.cell(40, 10, t["Fecha"], 1)
-                pdf.cell(40, 10, t["Tipo"], 1)
-                pdf.cell(50, 10, t["Categoría"], 1)
-                pdf.cell(30, 10, f"${float(t['Monto']):.2f}", 1)
-                pdf.cell(0, 10, t["Descripción"][:30], 1)
-                pdf.ln()
+            # Contenido de tabla
+            pdf.set_fill_color(255, 255, 255)
+            pdf.set_font('Times', '', 10)
+            fill = False
             
-            # Totales
+            for t in filtered:
+                # Manejar descripción multilínea
+                desc = pdf.multi_cell(col_widths[4], 5, t["Descripción"], border=1, 
+                                    fill=fill, split_only=True)
+                row_height = len(desc) * 5
+                
+                # Fila con altura adaptable
+                max_height = row_height
+                pdf.cell(col_widths[0], row_height, t["Fecha"], 1, 0, 'C', fill)
+                pdf.cell(col_widths[1], row_height, t["Tipo"], 1, 0, 'C', fill)
+                pdf.cell(col_widths[2], row_height, t["Categoría"], 1, 0, 'C', fill)
+                pdf.cell(col_widths[3], row_height, f"${float(t['Monto']):.2f}", 1, 0, 'R', fill)
+                
+                # Celda de descripción con multi línea
+                x = pdf.get_x()
+                y = pdf.get_y()
+                pdf.multi_cell(col_widths[4], 5, t["Descripción"], 1, 'L', fill)
+                pdf.set_xy(x + col_widths[4], y)
+                
+                pdf.ln(row_height)
+                fill = not fill
+            
+            # Resumen financiero
             pdf.ln(10)
-            pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 10, f"Ingresos Totales: ${ingresos:.2f}", 0, 1)
-            pdf.cell(0, 10, f"Gastos Totales: ${gastos:.2f}", 0, 1)
-            pdf.cell(0, 10, f"Ganancia Neta: ${ganancia:.2f}", 0, 1)
-            pdf.cell(0, 10, f"Margen de Ganancia: {margen:.1f}%", 0, 1)
+            pdf.set_font('Arial', 'B', 12)
+            pdf.set_fill_color(245, 245, 245)  # Gris claro
+            pdf.cell(0, 10, 'Resumen Financiero', 0, 1, 'L')
+            
+            pdf.set_font('Times', 'B', 11)
+            pdf.cell(60, 8, 'Concepto', 1, 0, 'C', True)
+            pdf.cell(60, 8, 'Monto', 1, 1, 'C', True)
+            
+            pdf.set_font('Times', '', 11)
+            data = [
+                ('Ingresos Totales', f"${ingresos:,.2f}"),
+                ('Gastos Totales', f"${gastos:,.2f}"),
+                ('Ganancia Neta', f"${ganancia:,.2f}"),
+                ('Margen de Ganancia', f"{margen:.1f}%")
+            ]
+            
+            for label, value in data:
+                pdf.cell(60, 8, label, 1, 0, 'L')
+                pdf.cell(60, 8, value, 1, 1, 'R')
+            
+            # Pie de página
+            pdf.set_y(-20)
+            pdf.set_font('Arial', 'I', 8)
+            pdf.cell(0, 5, 'Este reporte fue generado automáticamente por gestionapp', 0, 0, 'C')
+            pdf.ln(5)
+            pdf.cell(0, 5, f'Generado el: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 0, 0, 'C')
             
             # Guardar archivo
             if not os.path.exists(os.path.join("Reportes")):
@@ -290,7 +338,7 @@ class FinanceApp:
             pathPDF = os.path.join("Reportes", filename)
             pdf.output(pathPDF)
             
-            messagebox.showinfo("Éxito", f"Reporte generado: {filename} en el directorio: {pathPDF}")
+            messagebox.showinfo("Éxito", f"Reporte generado: {filename}")
             self.balance_window.destroy()
             
         except ValueError as e:

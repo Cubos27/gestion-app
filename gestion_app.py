@@ -247,65 +247,45 @@ class FinanceApp:
             ganancia = ingresos - gastos
             margen = (ganancia / ingresos * 100) if ingresos != 0 else 0
             
-            # Configurar PDF profesional
+            # Separar transacciones
+            ingresos_lista = [t for t in filtered if t["Tipo"] == "Ingreso"]
+            gastos_lista = [t for t in filtered if t["Tipo"] == "Gasto"]
+
+            # Configurar PDF
             pdf = FPDF(orientation='P', unit='mm', format='A4')
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
             
             # Estilos
-            pdf.set_draw_color(34, 119, 255)  # Azul corporativo
+            pdf.set_draw_color(34, 119, 255)
             pdf.set_line_width(0.3)
             
-            # Encabezado
+            # Encabezado 
             pdf.set_font('Arial', 'B', 16)
             pdf.cell(0, 10, 'Reporte Financiero', 0, 1, 'C')
             pdf.set_font('Arial', '', 12)
             pdf.cell(0, 8, f'Periodo: {start.strftime("%d/%m/%Y")} - {end.strftime("%d/%m/%Y")}', 0, 1, 'C')
             pdf.ln(10)
-            
-            # Tabla de transacciones
-            col_widths = [25, 25, 35, 25, 80]  # Ajuste de anchos de columna
-            header = ['Fecha', 'Tipo', 'Categoría', 'Monto', 'Descripción']
-            
-            # Encabezado de tabla
-            pdf.set_fill_color(240, 245, 255)  # Azul claro
-            pdf.set_font('Arial', 'B', 10)
-            for i, col in enumerate(header):
-                pdf.cell(col_widths[i], 10, col, 1, 0, 'C', True)
-            pdf.ln()
-            
-            # Contenido de tabla
-            pdf.set_fill_color(255, 255, 255)
-            pdf.set_font('Times', '', 10)
-            fill = False
-            
-            for t in filtered:
-                # Manejar descripción multilínea
-                desc = pdf.multi_cell(col_widths[4], 5, t["Descripción"], border=1, 
-                                    fill=fill, split_only=True)
-                row_height = len(desc) * 5
-                
-                # Fila con altura adaptable
-                max_height = row_height
-                pdf.cell(col_widths[0], row_height, t["Fecha"], 1, 0, 'C', fill)
-                pdf.cell(col_widths[1], row_height, t["Tipo"], 1, 0, 'C', fill)
-                pdf.cell(col_widths[2], row_height, t["Categoría"], 1, 0, 'C', fill)
-                pdf.cell(col_widths[3], row_height, f"${float(t['Monto']):.2f}", 1, 0, 'R', fill)
-                
-                # Celda de descripción con multi línea
-                x = pdf.get_x()
-                y = pdf.get_y()
-                pdf.multi_cell(col_widths[4], 5, t["Descripción"], 1, 'L', fill)
-                pdf.set_xy(x + col_widths[4], y)
-                
-                pdf.ln(row_height)
-                fill = not fill
+
+            # Tabla de Ingresos
+            if ingresos_lista:
+                pdf.set_font('Arial', 'B', 12)
+                pdf.cell(0, 8, 'Ingresos', 0, 1)
+                self.generar_tabla_con_total(pdf, ingresos_lista, "Ingresos Totales:")
+                pdf.ln(8)
+
+            # Tabla de Gastos
+            if gastos_lista:
+                pdf.set_font('Arial', 'B', 12)
+                pdf.cell(0, 8, 'Gastos', 0, 1)
+                self.generar_tabla_con_total(pdf, gastos_lista, "Gastos Totales:")
+                pdf.ln(10)
             
             # Resumen financiero
             pdf.ln(10)
             pdf.set_font('Arial', 'B', 12)
             pdf.set_fill_color(245, 245, 245)  # Gris claro
-            pdf.cell(0, 10, 'Resumen Financiero', 0, 1, 'L')
+            pdf.cell(0, 10, 'Resumen General', 0, 1, 'L')
             
             pdf.set_font('Times', 'B', 11)
             pdf.cell(60, 8, 'Concepto', 1, 0, 'C', True)
@@ -327,8 +307,8 @@ class FinanceApp:
             pdf.set_y(-20)
             pdf.set_font('Arial', 'I', 8)
             pdf.cell(0, 5, 'Este reporte fue generado automáticamente por gestionapp', 0, 0, 'C')
-            pdf.ln(5)
-            pdf.cell(0, 5, f'Generado el: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 0, 0, 'C')
+            # pdf.ln(5)
+            # pdf.cell(0, 5, f'Generado el: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 0, 0, 'C')
             
             # Guardar archivo
             if not os.path.exists(os.path.join("Reportes")):
@@ -345,6 +325,48 @@ class FinanceApp:
             messagebox.showerror("Error", f"Datos inválidos: {str(e)}")
         except Exception as e:
             messagebox.showerror("Error", f"Ocurrió un error: {str(e)}")
+
+    def generar_tabla_con_total(self, pdf, datos, texto_total):
+        # Configurar columnas
+        columnas = ['Fecha', 'Categoría', 'Descripción', 'Monto']
+        anchos = [25, 35, 80, 25]
+        
+        # Encabezado
+        pdf.set_fill_color(240, 245, 255)
+        pdf.set_font('Arial', 'B', 10)
+        for ancho, col in zip(anchos, columnas):
+            pdf.cell(ancho, 8, col, 1, 0, 'C', True)
+        pdf.ln()
+        
+        # Filas
+        pdf.set_font('Times', '', 10)
+        total = 0
+        fill = False
+        
+        for item in datos:
+            total += float(item['Monto'])
+            
+            # Formatear descripción multilínea
+            desc = item['Descripción'].replace('\n', ' ')
+            
+            pdf.cell(anchos[0], 8, item['Fecha'], 1, 0, 'C', fill)
+            pdf.cell(anchos[1], 8, item['Categoría'], 1, 0, 'C', fill)
+            
+            # Celda de descripción con ajuste
+            x = pdf.get_x()
+            y = pdf.get_y()
+            pdf.multi_cell(anchos[2], 8, desc, 1, 'L', fill)
+            pdf.set_xy(x + anchos[2], y)
+            
+            pdf.cell(anchos[3], 8, f"${float(item['Monto']):.2f}", 1, 0, 'R', fill)
+            pdf.ln(8)
+            fill = not fill
+        
+        # Fila de total
+        pdf.set_font('Times', 'B', 10)
+        pdf.set_fill_color(220, 230, 255)
+        pdf.cell(sum(anchos[:-1]), 8, texto_total, 1, 0, 'R', True)
+        pdf.cell(anchos[3], 8, f"${total:.2f}", 1, 1, 'R', True)
 
     def update_table(self):
         for item in self.tree.get_children():
